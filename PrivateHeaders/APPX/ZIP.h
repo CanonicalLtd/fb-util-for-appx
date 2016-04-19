@@ -19,6 +19,8 @@
 #include <cstdarg>
 #include <cstdint>
 #include <cstdio>
+#include <fstream>
+#include <iostream>
 #include <sstream>
 #include <string>
 #include <unordered_map>
@@ -367,6 +369,55 @@ namespace appx {
                            offset, crc32, {}, sha256);
         entry.WriteFileRecordHeader(sink);
         sink.Write(xmlSize, xmlBytes);
+        return entry;
+    }
+
+    template <typename TSink>
+    ZIPFileEntry
+    WriteAppxBundleManifestZIPFileEntry(TSink &sink, off_t offset,
+                                        const std::string &inputFileName,
+                                        const std::string &archiveFileName,
+                                        const std::vector<ZIPFileEntry> &otherEntries)
+    {
+        std::ifstream manifestInput(inputFileName);
+        std::string manifestText((std::istreambuf_iterator<char>(manifestInput)),
+                                  std::istreambuf_iterator<char>());
+
+       std::cout << "\n\n ABOUT TO GO OVER OTHERENTRIES" << "\n\n";
+       std::cout << "\n\n" << manifestText << "\n\n";
+
+        for (const ZIPFileEntry &entry : otherEntries) {
+            std::string fileName = entry.fileName;
+            std::string offsetTemplateName = entry.fileName + "-offset";
+            std::cout << "\n\n" << offsetTemplateName;
+            size_t pos = 0;
+            size_t entryDataOffset = entry.fileRecordHeaderOffset + entry.FileRecordHeaderSize();
+            while ((pos = manifestText.find(offsetTemplateName, pos)) != std::string::npos) {
+                std::cout << "replacing something" << std::endl;
+                manifestText.replace(pos, offsetTemplateName.length(), std::to_string(entryDataOffset));
+            }
+        }
+
+        std::cout << "\n\n" << manifestText << "\n\n";
+
+        std::size_t manifestTextSize = manifestText.size();
+        const std::uint8_t *manifestTextBytes =
+            reinterpret_cast<const std::uint8_t *>(manifestText.c_str());
+        std::uint32_t crc32;
+        SHA256Hash sha256;
+        {
+            CRC32Sink crc32Sink;
+            SHA256Sink sha256Sink;
+            auto sink = MakeMultiSink(crc32Sink, sha256Sink);
+            sink.Write(manifestTextSize, manifestTextBytes);
+            crc32 = crc32Sink.CRC32();
+            sha256 = sha256Sink.SHA256();
+        }
+        assert(manifestText.size() < std::numeric_limits<off_t>::max());
+        ZIPFileEntry entry(archiveFileName, static_cast<off_t>(manifestTextSize),
+                           offset, crc32, {}, sha256);
+        entry.WriteFileRecordHeader(sink);
+        sink.Write(manifestTextSize, manifestTextBytes);
         return entry;
     }
 

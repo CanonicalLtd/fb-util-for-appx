@@ -12,6 +12,7 @@
 #include <APPX/Sink.h>
 #include <APPX/ZIP.h>
 #include <cstdint>
+#include <iostream>
 #include <memory>
 #include <unordered_map>
 #include <vector>
@@ -86,12 +87,13 @@ namespace appx {
     void WriteAppx(
         const FilePtr &zip,
         const std::unordered_map<std::string, std::string> &fileNames,
-        const std::string *certPath, int compressionLevel)
+        const std::string *certPath, int compressionLevel, bool bundle)
     {
         FileSink zipRawSink(zip.get());
         OffsetSink zipOffsetSink;
         auto zipSink = MakeMultiSink(zipRawSink, zipOffsetSink);
         std::vector<ZIPFileEntry> zipFileEntries;
+        std::pair<std::string, std::string> appxBundleManifest;
 
         APPXDigests digests;
 
@@ -102,6 +104,15 @@ namespace appx {
             for (const auto &fileNamePair : fileNames) {
                 const std::string &archiveName = fileNamePair.first;
                 const std::string &fileName = fileNamePair.second;
+
+                const std::string suffix = "AppxBundleManifest.xml";
+                if (bundle &&
+                        suffix.size() < archiveName.size() &&
+                        std::equal(suffix.rbegin(), suffix.rend(), archiveName.rbegin())) {
+                    appxBundleManifest = fileNamePair;
+                    continue;
+                }
+
                 zipFileEntries.emplace_back(
                     WriteZIPFileEntry(sink, zipOffsetSink.Offset(), fileName,
                                       archiveName, compressionLevel));
@@ -116,6 +127,18 @@ namespace appx {
                 sink, zipOffsetSink.Offset(), zipFileEntries);
             digests.axct = contentTypes.sha256;
             zipFileEntries.emplace_back(std::move(contentTypes));
+
+            if (bundle) {
+                std::cout << "@@@ " << appxBundleManifest.first << std::endl;
+                std::cout << "@@@ " << appxBundleManifest.second << std::endl;
+                ZIPFileEntry appxBundleManifestEntry = WriteAppxBundleManifestZIPFileEntry(
+                    sink,
+                    zipOffsetSink.Offset(),
+                    appxBundleManifest.second,
+                    appxBundleManifest.first,
+                    zipFileEntries);
+                zipFileEntries.emplace_back(std::move(appxBundleManifestEntry));
+            }
 
             digests.axpc = axpcSink.SHA256();
         }

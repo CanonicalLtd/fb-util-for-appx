@@ -134,7 +134,8 @@ int main(int argc, char **argv) try {
     const char *certPath = NULL;
     const char *appxPath = NULL;
     int compressionLevel = Z_NO_COMPRESSION;
-    while (int c = getopt(argc, argv, "0123456789c:ho:")) {
+    bool bundle = false;
+    while (int c = getopt(argc, argv, "0123456789bc:ho:")) {
         if (c == -1) {
             break;
         }
@@ -150,6 +151,9 @@ int main(int argc, char **argv) try {
             case '8':
             case '9':
                 compressionLevel = c - '0';
+                break;
+            case 'b':
+                bundle = true;
                 break;
             case 'c':
                 certPath = optarg;
@@ -194,7 +198,7 @@ int main(int argc, char **argv) try {
     std::string certPathString = certPath ?: "";
     FilePtr appx = Open(appxPath, "wb");
     WriteAppx(appx, fileNames, certPath ? &certPathString : nullptr,
-              compressionLevel);
+              compressionLevel, bundle);
     return 0;
 } catch (std::exception &e) {
     fprintf(stderr, "%s\n", e.what());
