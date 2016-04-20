@@ -118,6 +118,19 @@ namespace appx {
                                       archiveName, compressionLevel));
             }
 
+            if (bundle) {
+                std::cout << "@@@ " << appxBundleManifest.first << std::endl;
+                std::cout << "@@@ " << appxBundleManifest.second << std::endl;
+                ZIPFileEntry appxBundleManifestEntry = WriteAppxBundleManifestZIPFileEntry(
+                    sink,
+                    zipOffsetSink.Offset(),
+                    appxBundleManifest.second,
+                    appxBundleManifest.first,
+                    compressionLevel,
+                    zipFileEntries);
+                zipFileEntries.emplace_back(std::move(appxBundleManifestEntry));
+            }
+
             ZIPFileEntry blockMap = WriteAppxBlockMapZIPFileEntry(
                 sink, zipOffsetSink.Offset(), zipFileEntries);
             digests.axbm = blockMap.sha256;
@@ -127,18 +140,6 @@ namespace appx {
                 sink, zipOffsetSink.Offset(), zipFileEntries);
             digests.axct = contentTypes.sha256;
             zipFileEntries.emplace_back(std::move(contentTypes));
-
-            if (bundle) {
-                std::cout << "@@@ " << appxBundleManifest.first << std::endl;
-                std::cout << "@@@ " << appxBundleManifest.second << std::endl;
-                ZIPFileEntry appxBundleManifestEntry = WriteAppxBundleManifestZIPFileEntry(
-                    sink,
-                    zipOffsetSink.Offset(),
-                    appxBundleManifest.second,
-                    appxBundleManifest.first,
-                    zipFileEntries);
-                zipFileEntries.emplace_back(std::move(appxBundleManifestEntry));
-            }
 
             digests.axpc = axpcSink.SHA256();
         }

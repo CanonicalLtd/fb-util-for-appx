@@ -234,10 +234,11 @@ namespace appx {
         // names, hence the use of sanitizedFileName
         static const std::unordered_map<std::string, const char *>
             sKnownContentTypes = {
+                {"appx", "application/vnd.ms-appx"},
                 {"dll", "application/x-msdownload"},
                 {"exe", "application/x-msdownload"},
                 {"png", "image/png"},
-                {"xml", "application/vnd.ms-appx.manifest+xml"},
+                {"xml", "application/vnd.ms-appx.bundlemanifest+xml"},
             };
         static const char *kDefaultContentType = "application/octet-stream";
 
@@ -327,6 +328,11 @@ namespace appx {
            << "xmlns=\"http://schemas.microsoft.com/appx/2010/blockmap\" "
            << "HashMethod=\"http://www.w3.org/2001/04/xmlenc#sha256\">";
         for (const ZIPFileEntry &entry : otherEntries) {
+            const std::string suffix = ".appx";
+            if (suffix.size() < entry.fileName.size() &&
+                    std::equal(suffix.rbegin(), suffix.rend(), entry.fileName.rbegin())) {
+                continue;
+            }
             std::string fixedFileName = entry.fileName;
             std::replace(fixedFileName.begin(), fixedFileName.end(), '/', '\\');
             ss << "<File "
@@ -377,6 +383,7 @@ namespace appx {
     WriteAppxBundleManifestZIPFileEntry(TSink &sink, off_t offset,
                                         const std::string &inputFileName,
                                         const std::string &archiveFileName,
+                                        int compressionLevel,
                                         const std::vector<ZIPFileEntry> &otherEntries)
     {
         std::ifstream manifestInput(inputFileName);
@@ -400,25 +407,11 @@ namespace appx {
 
         std::cout << "\n\n" << manifestText << "\n\n";
 
-        std::size_t manifestTextSize = manifestText.size();
-        const std::uint8_t *manifestTextBytes =
-            reinterpret_cast<const std::uint8_t *>(manifestText.c_str());
-        std::uint32_t crc32;
-        SHA256Hash sha256;
-        {
-            CRC32Sink crc32Sink;
-            SHA256Sink sha256Sink;
-            auto sink = MakeMultiSink(crc32Sink, sha256Sink);
-            sink.Write(manifestTextSize, manifestTextBytes);
-            crc32 = crc32Sink.CRC32();
-            sha256 = sha256Sink.SHA256();
-        }
-        assert(manifestText.size() < std::numeric_limits<off_t>::max());
-        ZIPFileEntry entry(archiveFileName, static_cast<off_t>(manifestTextSize),
-                           offset, crc32, {}, sha256);
-        entry.WriteFileRecordHeader(sink);
-        sink.Write(manifestTextSize, manifestTextBytes);
-        return entry;
+        std::string outputFileName = inputFileName + ".temp";
+        std::ofstream manifestOutput(outputFileName);
+        manifestOutput << manifestText;
+        manifestOutput.close();
+        return WriteZIPFileEntry(sink, offset, outputFileName, archiveFileName, compressionLevel);
     }
 
     template <typename TSink>
@@ -434,6 +427,12 @@ namespace appx {
         std::vector<ZIPBlock> blocks;
         ZIPCompressionType compressionType;
         {
+            const std::string suffix = ".appx";
+            if (suffix.size() < inputFileName.size() &&
+                    std::equal(suffix.rbegin(), suffix.rend(), inputFileName.rbegin())) {
+                compressionLevel = Z_NO_COMPRESSION;
+            }
+
             FilePtr file = Open(inputFileName, "rb");
             CRC32Sink crc32Sink;
             VectorSink dataSink(data);
