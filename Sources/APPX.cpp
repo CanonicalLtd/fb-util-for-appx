@@ -119,8 +119,6 @@ namespace appx {
             }
 
             if (bundle) {
-                std::cout << "@@@ " << appxBundleManifest.first << std::endl;
-                std::cout << "@@@ " << appxBundleManifest.second << std::endl;
                 ZIPFileEntry appxBundleManifestEntry = WriteAppxBundleManifestZIPFileEntry(
                     sink,
                     zipOffsetSink.Offset(),
@@ -131,11 +129,13 @@ namespace appx {
                 zipFileEntries.emplace_back(std::move(appxBundleManifestEntry));
             }
 
+            // this creates AppxBlockMap.xml file
             ZIPFileEntry blockMap = WriteAppxBlockMapZIPFileEntry(
                 sink, zipOffsetSink.Offset(), zipFileEntries);
             digests.axbm = blockMap.sha256;
             zipFileEntries.emplace_back(std::move(blockMap));
 
+            // this creates [Content_Types].xml
             ZIPFileEntry contentTypes = WriteContentTypesZIPFileEntry(
                 sink, zipOffsetSink.Offset(), zipFileEntries);
             digests.axct = contentTypes.sha256;

@@ -184,6 +184,37 @@ namespace appx {
         }
     };
 
+    inline
+    bool
+    _IsAPPXFile(const std::string &inputFileName)
+    {
+        const std::string suffix = ".appx";
+        return (suffix.size() < inputFileName.size() &&
+                std::equal(suffix.rbegin(), suffix.rend(), inputFileName.rbegin()));
+    }
+
+    inline
+    std::string
+    _ReplaceOffsetsInTemplate(const std::string &inputFileName,
+                             const std::vector<ZIPFileEntry> &otherEntries)
+    {
+        std::ifstream manifestInput(inputFileName);
+        std::string manifestText((std::istreambuf_iterator<char>(manifestInput)),
+                                  std::istreambuf_iterator<char>());
+
+        // here we are creating offsets
+        for (const ZIPFileEntry &entry : otherEntries) {
+            std::string offsetTemplateName = entry.fileName + "-offset";
+            size_t pos = 0;
+            size_t entryDataOffset = entry.fileRecordHeaderOffset + entry.FileRecordHeaderSize();
+            while ((pos = manifestText.find(offsetTemplateName, pos)) != std::string::npos) {
+                manifestText.replace(pos, offsetTemplateName.length(), std::to_string(entryDataOffset));
+            }
+        }
+
+        return manifestText;
+    }
+
     template <typename TSink>
     void WriteZIPEndOfCentralDirectoryRecord(
         TSink &sink, off_t offset, const std::vector<ZIPFileEntry> &entries)
@@ -224,6 +255,7 @@ namespace appx {
         sink.Write(sizeof(data), data);
     }
 
+    // this writes [Content_Types].xml
     template <typename TSink>
     ZIPFileEntry WriteContentTypesZIPFileEntry(
         TSink &sink, off_t offset,
@@ -328,10 +360,8 @@ namespace appx {
            << "xmlns=\"http://schemas.microsoft.com/appx/2010/blockmap\" "
            << "HashMethod=\"http://www.w3.org/2001/04/xmlenc#sha256\">";
         for (const ZIPFileEntry &entry : otherEntries) {
-            const std::string suffix = ".appx";
-            if (suffix.size() < entry.fileName.size() &&
-                    std::equal(suffix.rbegin(), suffix.rend(), entry.fileName.rbegin())) {
-                continue;
+            if (_IsAPPXFile(entry.fileName)) {
+            	continue;
             }
             std::string fixedFileName = entry.fileName;
             std::replace(fixedFileName.begin(), fixedFileName.end(), '/', '\\');
@@ -386,27 +416,7 @@ namespace appx {
                                         int compressionLevel,
                                         const std::vector<ZIPFileEntry> &otherEntries)
     {
-        std::ifstream manifestInput(inputFileName);
-        std::string manifestText((std::istreambuf_iterator<char>(manifestInput)),
-                                  std::istreambuf_iterator<char>());
-
-       std::cout << "\n\n ABOUT TO GO OVER OTHERENTRIES" << "\n\n";
-       std::cout << "\n\n" << manifestText << "\n\n";
-
-        for (const ZIPFileEntry &entry : otherEntries) {
-            std::string fileName = entry.fileName;
-            std::string offsetTemplateName = entry.fileName + "-offset";
-            std::cout << "\n\n" << offsetTemplateName;
-            size_t pos = 0;
-            size_t entryDataOffset = entry.fileRecordHeaderOffset + entry.FileRecordHeaderSize();
-            while ((pos = manifestText.find(offsetTemplateName, pos)) != std::string::npos) {
-                std::cout << "replacing something" << std::endl;
-                manifestText.replace(pos, offsetTemplateName.length(), std::to_string(entryDataOffset));
-            }
-        }
-
-        std::cout << "\n\n" << manifestText << "\n\n";
-
+        std::string manifestText = _ReplaceOffsetsInTemplate(inputFileName, otherEntries);
         std::string outputFileName = inputFileName + ".temp";
         std::ofstream manifestOutput(outputFileName);
         manifestOutput << manifestText;
@@ -427,9 +437,7 @@ namespace appx {
         std::vector<ZIPBlock> blocks;
         ZIPCompressionType compressionType;
         {
-            const std::string suffix = ".appx";
-            if (suffix.size() < inputFileName.size() &&
-                    std::equal(suffix.rbegin(), suffix.rend(), inputFileName.rbegin())) {
+            if (_IsAPPXFile(inputFileName)) {
                 compressionLevel = Z_NO_COMPRESSION;
             }
 
