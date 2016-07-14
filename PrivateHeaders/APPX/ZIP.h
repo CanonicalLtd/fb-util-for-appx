@@ -258,20 +258,25 @@ namespace appx {
     // this writes [Content_Types].xml
     template <typename TSink>
     ZIPFileEntry WriteContentTypesZIPFileEntry(
-        TSink &sink, off_t offset,
+        TSink &sink, off_t offset, bool isBundle,
         const std::vector<ZIPFileEntry> &otherEntries)
     {
         // we only need the filenames from otherEntries
         // [Content_Types].xml contains the ZIP-escaped
         // names, hence the use of sanitizedFileName
-        static const std::unordered_map<std::string, const char *>
+        static std::unordered_map<std::string, const char *>
             sKnownContentTypes = {
                 {"appx", "application/vnd.ms-appx"},
                 {"dll", "application/x-msdownload"},
                 {"exe", "application/x-msdownload"},
                 {"png", "image/png"},
-                {"xml", "application/vnd.ms-appx.bundlemanifest+xml"},
             };
+        if (isBundle) {
+            sKnownContentTypes.insert({{"xml", "application/vnd.ms-appx.bundlemanifest+xml"}});
+        } else {
+            sKnownContentTypes.insert({{"xml", "application/vnd.ms-appx.manifest+xml"}});
+        }
+
         static const char *kDefaultContentType = "application/octet-stream";
 
         std::ostringstream ss;
@@ -361,7 +366,7 @@ namespace appx {
            << "HashMethod=\"http://www.w3.org/2001/04/xmlenc#sha256\">";
         for (const ZIPFileEntry &entry : otherEntries) {
             if (_IsAPPXFile(entry.fileName)) {
-            	continue;
+                continue;
             }
             std::string fixedFileName = entry.fileName;
             std::replace(fixedFileName.begin(), fixedFileName.end(), '/', '\\');

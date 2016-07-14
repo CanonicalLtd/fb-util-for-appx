@@ -137,7 +137,7 @@ namespace appx {
 
             // this creates [Content_Types].xml
             ZIPFileEntry contentTypes = WriteContentTypesZIPFileEntry(
-                sink, zipOffsetSink.Offset(), zipFileEntries);
+                sink, zipOffsetSink.Offset(), bundle, zipFileEntries);
             digests.axct = contentTypes.sha256;
             zipFileEntries.emplace_back(std::move(contentTypes));
 
