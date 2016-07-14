@@ -193,12 +193,19 @@ namespace appx {
                 std::equal(suffix.rbegin(), suffix.rend(), inputFileName.rbegin()));
     }
 
+	// For each of the appx files that we store in appxbundle, there is a corresponding
+	//	 entry in AppxBundleManifest.xml. This entry (an XML node) contains the "Offset"
+	//	 property which specifies the header offset in the final appxbundle file. Since this
+	//	 value is not known before we create the appxbundle, we provide a placeholder
+	//	 that looks like "FileName.appx-offset". This placeholder suggests that when packaging
+	//	 and creating the appxbundle we need to replace "FileName.appx-offset" with the
+	//	 number that represents the offset for FileName.appx.
     inline
     std::string
-    _ReplaceOffsetsInTemplate(const std::string &inputFileName,
-                             const std::vector<ZIPFileEntry> &otherEntries)
+	_ManifestContentsAfterPopulatingOffsets(const std::string &manifestInputFileName,
+                                           const std::vector<ZIPFileEntry> &otherEntries)
     {
-        std::ifstream manifestInput(inputFileName);
+        std::ifstream manifestInput(manifestInputFileName);
         std::string manifestText((std::istreambuf_iterator<char>(manifestInput)),
                                   std::istreambuf_iterator<char>());
 
@@ -421,7 +428,7 @@ namespace appx {
                                         int compressionLevel,
                                         const std::vector<ZIPFileEntry> &otherEntries)
     {
-        std::string manifestText = _ReplaceOffsetsInTemplate(inputFileName, otherEntries);
+        std::string manifestText = _ManifestContentsAfterPopulatingOffsets(inputFileName, otherEntries);
         std::string outputFileName = inputFileName + ".temp";
         std::ofstream manifestOutput(outputFileName);
         manifestOutput << manifestText;

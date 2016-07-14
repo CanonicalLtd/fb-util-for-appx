@@ -105,7 +105,7 @@ void PrintUsage(const char *programName)
 {
     fprintf(stderr,
             "Usage: %s -o APPX [OPTION]... INPUT...\n"
-            "Creates an optionally-signed Microsoft APPX package.\n"
+            "Creates an optionally-signed Microsoft APPX or APPXBUNDLE package.\n"
             "\n"
             "Options:\n"
             "  -c pfx-file     sign the APPX with the private key file\n"
@@ -184,6 +184,7 @@ int main(int argc, char **argv) try {
         return 1;
     }
     std::unordered_map<std::string, std::string> fileNames;
+    bool foundBundleManifestFile = bundle;
     for (char *const *i = argv; i != argv + argc; ++i) {
         const char *arg = *i;
         const char *equalSeparator = strchr(arg, '=');
@@ -195,6 +196,9 @@ int main(int argc, char **argv) try {
             // Local path specified. Infer archive path.
             GetArchiveFileList(arg, fileNames);
         }
+    }
+    if (bundle && fileNames.count("AppxMetadata/AppxBundleManifest.xml") == 0) {
+        throw std::runtime_error("You need to provide AppxBundleManifest.xml!");
     }
     std::string certPathString = certPath ?: "";
     FilePtr appx = Open(appxPath, "wb");
