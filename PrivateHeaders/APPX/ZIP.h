@@ -421,26 +421,35 @@ namespace appx {
     }
 
     template <typename TSink>
-    ZIPFileEntry
-    WriteAppxBundleManifestZIPFileEntry(TSink &sink, off_t offset,
-                                        const std::string &inputFileName,
-                                        const std::string &archiveFileName,
-                                        int compressionLevel,
-                                        const std::vector<ZIPFileEntry> &otherEntries)
+    ZIPFileEntry WriteAppxBundleManifestZIPFileEntry(
+        TSink &sink, off_t offset, const std::string &inputFileName,
+        const std::string &archiveFileName, int compressionLevel,
+        const std::vector<ZIPFileEntry> &otherEntries)
     {
-        std::string manifestText = _ManifestContentsAfterPopulatingOffsets(inputFileName, otherEntries);
-        std::string outputFileName = inputFileName + ".temp";
-        std::ofstream manifestOutput(outputFileName);
-        manifestOutput << manifestText;
-        manifestOutput.close();
-        return WriteZIPFileEntry(sink, offset, outputFileName, archiveFileName, compressionLevel);
+        return WriteZIPFileEntry(
+            sink, offset, archiveFileName, compressionLevel,
+            [&inputFileName, &otherEntries](auto &sink) {
+                std::string manifestText =
+                    _ManifestContentsAfterPopulatingOffsets(
+                        inputFileName, otherEntries);
+                sink.Write(
+                    manifestText.size(),
+                    reinterpret_cast<const std::uint8_t *>(
+                        manifestText.c_str()));
+            });
     }
 
-    template <typename TSink>
+    // Write the ZIP file record header and data to sink, reading the data using
+    // dataCallback.
+    //
+    // dataCallback is called as a function:
+    // template <typename TSink> void dataCallback(TSink &);
+    //
+    // dataCallback is called at most once.
+    template <typename TSink, typename TSource>
     ZIPFileEntry WriteZIPFileEntry(TSink &sink, off_t offset,
-                                   const std::string &inputFileName,
                                    const std::string &archiveFileName,
-                                   int compressionLevel)
+                                   int compressionLevel, TSource &&dataCallback)
     {
         std::uint32_t crc32;
         off_t uncompressedFileSize;
@@ -449,11 +458,10 @@ namespace appx {
         std::vector<ZIPBlock> blocks;
         ZIPCompressionType compressionType;
         {
-            if (_IsAPPXFile(inputFileName)) {
+            if (_IsAPPXFile(archiveFileName)) {
                 compressionLevel = Z_NO_COMPRESSION;
             }
 
-            FilePtr file = Open(inputFileName, "rb");
             CRC32Sink crc32Sink;
             VectorSink dataSink(data);
             // TODO(strager): Instead of writing the data to memory, write the
@@ -464,7 +472,7 @@ namespace appx {
                                                []() { return SHA256Sink(); });
                 auto sink =
                     MakeMultiSink(crc32Sink, offsetSink, dataSink, chunkSink);
-                Copy(file, sink);
+                dataCallback(sink);
                 chunkSink.Close();
                 for (const SHA256Sink &chunk : chunkSink.Chunks()) {
                     blocks.push_back(ZIPBlock(chunk.SHA256()));
@@ -523,7 +531,7 @@ namespace appx {
                 OffsetSink uncompressedOffsetSink;
                 auto sink =
                     MakeMultiSink(chunkSink, uncompressedOffsetSink, crc32Sink);
-                Copy(file, sink);
+                dataCallback(sink);
                 chunkSink.Close();
                 deflateSink.Close();
                 for (const Chunk &chunk : chunkSink.Chunks()) {
@@ -542,6 +550,22 @@ namespace appx {
         entry.WriteFileRecordHeader(sink);
         sink.Write(data.size(), data.data());
         return entry;
+    }
+
+    // Write the ZIP file record header and data to sink, reading the data from
+    // a file.
+    template <typename TSink>
+    ZIPFileEntry WriteZIPFileEntry(TSink &sink, off_t offset,
+                                   const std::string &inputFileName,
+                                   const std::string &archiveFileName,
+                                   int compressionLevel)
+    {
+        return WriteZIPFileEntry(sink, offset, archiveFileName,
+                                 compressionLevel,
+                                 [&inputFileName](auto &sink) {
+                                     FilePtr file = Open(inputFileName, "rb");
+                                     Copy(file, sink);
+                                 });
     }
 }
 }
