@@ -1,0 +1,23 @@
+Source: fb-util-for-appx
+Section: utils
+Priority: optional
+Maintainer: Dimitri John Ledkov <xnox@ubuntu.com>
+Build-Depends: debhelper (>=9), cmake, libssl-dev, zlib1g-dev, python
+Standards-Version: 3.9.6
+Homepage: https://github.com/fb-util-for-appx
+Vcs-Browser: https://github.com/CanonicalLtd/fb-util-for-appx
+Vcs-Git: https://github.com/CanonicalLtd/fb-util-for-appx.git
+
+Package: fb-util-for-appx
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends}
+Description: tool to create Universal Windows packages
+ appx utility creates Microsoft Windows APPX packages as required for
+ Windows 10 Universal Applications (UAP) and Windows 10 Mobile
+ platforms. Resultant packages are suitable to be uploaded into
+ Windows Store. This utility supports signing using .pfx certificate
+ and private key, same one as used by Windows 10 SDK.
+ .
+ The functionality provided is a mostly complete and compatible
+ combination of SignTool.exe and MakeAppx.exe.
+ 
